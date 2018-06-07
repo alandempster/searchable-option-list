@@ -69,6 +69,10 @@
                 onOpen: undefined,
                 onClose: undefined,
                 onChange: undefined,
+                // new event to give client code access to the "selected ones",
+                // divs as they are rendered, enabling use to e.g. decorate 
+                // them with data- attributes, turn the <span> into an <a> etc
+                onSelectionDisplayed: undefined,
                 onScroll: function () {
 
                     var selectionContainerYPos = this.$input.offset().top - this.config.scrollTarget.scrollTop() + this.$input.outerHeight(false),
@@ -884,13 +888,19 @@
             var solOptionItem = $changedItem.data('sol-item'),
                 $existingDisplayItem = solOptionItem.displaySelectionItem,
                 $displayItemText;
-
             if (!$existingDisplayItem) {
-                $displayItemText = $('<span class="sol-selected-display-item-text" />').html(solOptionItem.label);
+                // added additional attributes to the selected ones
+                $displayItemText = $('<span class="sol-selected-display-item-text" data-item-id="' + solOptionItem.value + '" />').html(solOptionItem.label);
                 $existingDisplayItem = $('<div class="sol-selected-display-item"/>')
                     .append($displayItemText)
                     .attr('title', solOptionItem.tooltip)
+                    .attr('data-item-id', solOptionItem.value)
                     .appendTo(this.$showSelectionContainer);
+                // raise the new onSelectionDisplay event any handler was passed in
+                if ($.isFunction(this.config.events.onSelectionDisplayed))
+                {
+                    this.config.events.onSelectionDisplayed(this, { $displayItemText: $displayItemText, $existingDisplayItem: $existingDisplayItem, itemValue: solOptionItem.value });
+                }
 
                 // show remove button on display items if not disabled and null selection allowed
                 if ((this.config.multiple || this.config.allowNullSelection) && !$changedItem.prop('disabled')) {
@@ -1050,7 +1060,16 @@
                 $alreadyInitializedSol = $this.data(SearchableOptionList.prototype.DATA_KEY);
 
             if ($alreadyInitializedSol) {
-                result.push($alreadyInitializedSol);
+                //result.push($alreadyInitializedSol);
+                // changed this if branch as per kapilg's workaround at
+                //  https://github.com/pbauerochse/searchable-option-list/issues/51
+                // to support (effectively) reinitialization with event binding
+                // when dynamically adding new <option>s to the underlying <select>,
+                // which acts as the underlying datasource
+                $alreadyInitializedSol.$container.html('');
+                var newSol = new SearchableOptionList($this, options);
+                result.push(newSol);
+                setTimeout(function () { newSol.init(); }, 0);
             } else {
                 var newSol = new SearchableOptionList($this, options);
                 result.push(newSol);
